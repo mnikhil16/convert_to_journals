@@ -2,14 +2,10 @@ package com.erp.convert_to_journals.service;
 
 import com.erp.convert_to_journals.entity.SalesInvoice;
 import com.erp.convert_to_journals.repository.SalesInvoiceRepository;
-import com.itextpdf.text.BaseColor;
-import com.itextpdf.text.Document;
-import com.itextpdf.text.DocumentException;
-import com.itextpdf.text.Phrase;
+import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
-import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -23,6 +19,7 @@ import org.springframework.stereotype.Component;
 import java.io.*;
 import java.sql.Date;
 import java.time.Month;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.stream.Stream;
@@ -35,8 +32,8 @@ public class CreateJournalEntrySalesInvoice {
     @Autowired
     SalesInvoiceRepository salesInvoiceRepository;
 
-    @Scheduled(cron ="0 46 12 * * ?")
-    public void executeAndSaveJournalEntries() {
+    @Scheduled(cron ="30 50 18 * * ?")
+    public void executeAndSaveJournalEntries() throws IOException {
 
         Date startDate = Date.valueOf("2022-04-01");
         Date endDate = Date.valueOf("2023-03-31");
@@ -60,7 +57,8 @@ public class CreateJournalEntrySalesInvoice {
 
             if (!salesInvoiceList.isEmpty()) {
                 createExcelForJournalEntries(month, year, salesInvoiceList, "JournalEntries.xlsx");
-                createPdfForJournalEntries(month, year, salesInvoiceList);
+                createPdfsForJournalEntries(month, year, salesInvoiceList);
+//                createPdfForJournalEntries();
             }
 
             // Move to the next month
@@ -130,14 +128,18 @@ public class CreateJournalEntrySalesInvoice {
             logger.error("error is " + e);
         }
     }
-    public void createPdfForJournalEntries(int month, int year, List<SalesInvoice> salesInvoiceList) {
+
+    public void createPdfsForJournalEntries(int month, int year, List<SalesInvoice> salesInvoiceList) {
         Month monthNumber = Month.of(month);
         String monthName = monthNumber.toString();
         String pdfFileName = "journal_entries_for_" + monthName + "_" + year + ".pdf";
 
         try {
+
             Document document = new Document();
             PdfWriter.getInstance(document, new FileOutputStream(pdfFileName));
+            List<String> fileNames = new ArrayList<>();
+            fileNames.add(pdfFileName);
             document.open();
 
             PdfPTable table = new PdfPTable(6);
@@ -168,26 +170,54 @@ public class CreateJournalEntrySalesInvoice {
 
             document.add(table);
             document.close();
-            try {
-                // Create a PDFMergerUtility instance
-                PDFMergerUtility merger = new PDFMergerUtility();
-
-                // Add each PDF to the merger
-                merger.addSource(new File(pdfFileName));
-
-                // Set the output PDF file
-                merger.setDestinationFileName("MergedJournalEntries.pdf");
-
-                // Merge the PDFs
-                merger.mergeDocuments(null);
-
-                logger.info("PDFs merged successfully!");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
 
             logger.trace("PDF file created: " + pdfFileName);
-        } catch (DocumentException | FileNotFoundException e) {
+        } catch (DocumentException | IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void createPdfForJournalEntries() throws IOException {
+        Date startDate = Date.valueOf("2022-04-01");
+        Date endDate = Date.valueOf("2023-03-31");
+        List<SalesInvoice> salesInvoiceList = salesInvoiceRepository.findSalesInvoicesByStartDateAndEndDate(startDate,endDate);
+        try {
+
+            Document document = new Document();
+            PdfWriter.getInstance(document, new FileOutputStream("JournalEntries.pdf"));
+            document.open();
+
+            PdfPTable table = new PdfPTable(6);
+            Stream.of("Date", "Description", "Particulars", "Entry Type", "Amount", "Account Type")
+                    .forEach(columnTitle -> {
+                        PdfPCell header = new PdfPCell();
+                        header.setBackgroundColor(BaseColor.LIGHT_GRAY);
+                        header.setBorderWidth(2);
+                        header.setPhrase(new Phrase(columnTitle));
+                        table.addCell(header);
+                    });
+
+            for (SalesInvoice salesInvoice : salesInvoiceList) {
+                table.addCell(salesInvoice.getSalesDate().toString());
+                table.addCell("sold goods to " + salesInvoice.getCustomerName() + " for rs " + salesInvoice.getAmount());
+                table.addCell("cash a/c");
+                table.addCell("d");
+                table.addCell(salesInvoice.getAmount().toString());
+                table.addCell("real account");
+
+                table.addCell(salesInvoice.getSalesDate().toString());
+                table.addCell("sold goods to " + salesInvoice.getCustomerName() + " for rs " + salesInvoice.getAmount());
+                table.addCell("to sales a/c");
+                table.addCell("c");
+                table.addCell(salesInvoice.getAmount().toString());
+                table.addCell("nominal account");
+            }
+
+            document.add(table);
+            document.close();
+
+            logger.trace("PDF file created.");
+        } catch (DocumentException | IOException e) {
             throw new RuntimeException(e);
         }
     }
