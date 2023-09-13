@@ -6,7 +6,7 @@ import java.sql.Date;
 
 @Entity
 @Table(name = "sales_invoice")
-public class SalesInvoice {
+public class Sale {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Integer salesInvoiceId;
@@ -14,8 +14,8 @@ public class SalesInvoice {
     @Column(name = "customer_name")
     String customerName;
 
-    @Column(name = "amount")
-    Double amount;
+    @Column(name = "sale_amount")
+    Double saleAmount;
 
 //    @Temporal(TemporalType.DATE)
     @Column(name = "sales_date")
@@ -27,12 +27,12 @@ public class SalesInvoice {
     @Column(name = "transaction_type_id")
     Integer transactionTypeId;
 
-    public SalesInvoice(){}
+    public Sale(){}
 
-    public SalesInvoice(Integer salesInvoiceId, String customerName, Double amount, Date salesDate, String salesInvoiceNumber, Integer transactionTypeId) {
+    public Sale(Integer salesInvoiceId, String customerName, Double saleAmount, Date salesDate, String salesInvoiceNumber, Integer transactionTypeId) {
         this.salesInvoiceId = salesInvoiceId;
         this.customerName = customerName;
-        this.amount = amount;
+        this.saleAmount = saleAmount;
         this.salesDate = salesDate;
         this.salesInvoiceNumber = salesInvoiceNumber;
         this.transactionTypeId = transactionTypeId;
@@ -54,12 +54,12 @@ public class SalesInvoice {
         this.customerName = customerName;
     }
 
-    public Double getAmount() {
-        return amount;
+    public Double getSaleAmount() {
+        return saleAmount;
     }
 
-    public void setAmount(Double amount) {
-        this.amount = amount;
+    public void setSaleAmount(Double saleAmount) {
+        this.saleAmount = saleAmount;
     }
 
     public Date getSalesDate() {
