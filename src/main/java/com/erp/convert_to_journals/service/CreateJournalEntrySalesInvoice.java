@@ -9,6 +9,7 @@ import com.itextpdf.text.Phrase;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
+import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.sql.Date;
+import java.time.Month;
 import java.util.Calendar;
 import java.util.List;
 import java.util.stream.Stream;
@@ -33,7 +35,7 @@ public class CreateJournalEntrySalesInvoice {
     @Autowired
     SalesInvoiceRepository salesInvoiceRepository;
 
-    @Scheduled(cron = "30 13 20 * * ?")
+    @Scheduled(cron ="0 46 12 * * ?")
     public void executeAndSaveJournalEntries() {
 
         Date startDate = Date.valueOf("2022-04-01");
@@ -45,16 +47,20 @@ public class CreateJournalEntrySalesInvoice {
         while (!startDate.after(endDate)) {
             int month = calendar.get(Calendar.MONTH) + 1; // Adding 1 because months are 0-based
             int year = calendar.get(Calendar.YEAR);
-            logger.info("Scheduled task executing..." + startDate + ":" + endDate + month + "-" + year);
+            Month monthNumber = Month.of(month);
+            String monthName = monthNumber.toString();
+
+            logger.info("Scheduled task executing..." + startDate + ":" + endDate + monthName + "-" + year);
 
 
             // Fetch sales data for the current month and year
             List<SalesInvoice> salesInvoiceList = salesInvoiceRepository.findSalesInvoicesByMonthAndYear(month, year);
-            logger.info("Found {} sales invoices for {}_{}", salesInvoiceList.size(), month, year);
+            logger.info("Found {} sales invoices for {}_{}", salesInvoiceList.size(), monthName, year);
 
 
             if (!salesInvoiceList.isEmpty()) {
-                createJournalEntriesForSale(month, year, salesInvoiceList, "JournalEntries.xlsx");
+                createExcelForJournalEntries(month, year, salesInvoiceList, "JournalEntries.xlsx");
+                createPdfForJournalEntries(month, year, salesInvoiceList);
             }
 
             // Move to the next month
@@ -63,8 +69,10 @@ public class CreateJournalEntrySalesInvoice {
         }
     }
 
-    public void createJournalEntriesForSale(int month, int year, List<SalesInvoice> salesInvoiceList, String existingFilePath) {
-        String monthYearString = month + "_" + year;
+    public void createExcelForJournalEntries(int month, int year, List<SalesInvoice> salesInvoiceList, String existingFilePath) {
+        Month monthNumber = Month.of(month);
+        String monthName = monthNumber.toString();
+        String monthYearString = monthName + "_" + year;
 
         try {
             // Load the existing Excel workbook if it exists, or create a new one if it doesn't
@@ -122,40 +130,65 @@ public class CreateJournalEntrySalesInvoice {
             logger.error("error is " + e);
         }
     }
-}
+    public void createPdfForJournalEntries(int month, int year, List<SalesInvoice> salesInvoiceList) {
+        Month monthNumber = Month.of(month);
+        String monthName = monthNumber.toString();
+        String pdfFileName = "journal_entries_for_" + monthName + "_" + year + ".pdf";
 
-            // Create a PDF
-//            String pdfFileName = "journal_entries_" + monthYearString + ".pdf";
-//            try {
-//                Document document = new Document();
-//                PdfWriter.getInstance(document, new FileOutputStream(pdfFileName));
-//                document.open();
-//
-//                PdfPTable table = new PdfPTable(6);
-//                Stream.of("Date", "Description", "Particulars", "Entry Type", "Amount", "Account Type")
-//                        .forEach(columnTitle -> {
-//                            PdfPCell header = new PdfPCell();
-//                            header.setBackgroundColor(BaseColor.LIGHT_GRAY);
-//                            header.setBorderWidth(2);
-//                            header.setPhrase(new Phrase(columnTitle));
-//                            table.addCell(header);
-//                        });
-//
-//                for (SalesInvoice salesInvoice : salesInvoiceList) {
-//                    table.addCell(salesInvoice.getSalesDate().toString());
-//                    table.addCell("sold goods to " + salesInvoice.getCustomerName() + " for rs " + salesInvoice.getAmount());
-//                    table.addCell("cash a/c");
-//                    table.addCell("d");
-//                    table.addCell(salesInvoice.getAmount().toString());
-//                    table.addCell("real account");
-//
-//                    table.addCell(salesInvoice.getSalesDate().toString());
-//                    table.addCell("sold goods to " + salesInvoice.getCustomerName() + " for rs " + salesInvoice.getAmount());
-//                    table.addCell("to sales a/c");
-//                    table.addCell("c");
-//                    table.addCell(salesInvoice.getAmount().toString());
-//                    table.addCell("nominal account");
-//                }
-//
-//                document.close();
-//                logger.trace("PDF file created: " + pdfFileName);
+        try {
+            Document document = new Document();
+            PdfWriter.getInstance(document, new FileOutputStream(pdfFileName));
+            document.open();
+
+            PdfPTable table = new PdfPTable(6);
+            Stream.of("Date", "Description", "Particulars", "Entry Type", "Amount", "Account Type")
+                    .forEach(columnTitle -> {
+                        PdfPCell header = new PdfPCell();
+                        header.setBackgroundColor(BaseColor.LIGHT_GRAY);
+                        header.setBorderWidth(2);
+                        header.setPhrase(new Phrase(columnTitle));
+                        table.addCell(header);
+                    });
+
+            for (SalesInvoice salesInvoice : salesInvoiceList) {
+                table.addCell(salesInvoice.getSalesDate().toString());
+                table.addCell("sold goods to " + salesInvoice.getCustomerName() + " for rs " + salesInvoice.getAmount());
+                table.addCell("cash a/c");
+                table.addCell("d");
+                table.addCell(salesInvoice.getAmount().toString());
+                table.addCell("real account");
+
+                table.addCell(salesInvoice.getSalesDate().toString());
+                table.addCell("sold goods to " + salesInvoice.getCustomerName() + " for rs " + salesInvoice.getAmount());
+                table.addCell("to sales a/c");
+                table.addCell("c");
+                table.addCell(salesInvoice.getAmount().toString());
+                table.addCell("nominal account");
+            }
+
+            document.add(table);
+            document.close();
+            try {
+                // Create a PDFMergerUtility instance
+                PDFMergerUtility merger = new PDFMergerUtility();
+
+                // Add each PDF to the merger
+                merger.addSource(new File(pdfFileName));
+
+                // Set the output PDF file
+                merger.setDestinationFileName("MergedJournalEntries.pdf");
+
+                // Merge the PDFs
+                merger.mergeDocuments(null);
+
+                logger.info("PDFs merged successfully!");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            logger.trace("PDF file created: " + pdfFileName);
+        } catch (DocumentException | FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+}
